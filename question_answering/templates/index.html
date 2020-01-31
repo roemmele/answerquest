@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html>
+<link href='//fonts.googleapis.com/css?family=Montserrat:thin,extra-light,light,bold,100,200,300,400,500,600,700,800' rel='stylesheet' type='text/css'>
+<link href="https://fonts.googleapis.com/css?family=Open+Sans:400,700|Droid+Sans+Mono" rel="stylesheet">
+<link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css">
+<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.4.1/jquery.min.js"></script>
+<script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.3.1/js/bootstrap.min.js"></script>
+
+<script>
+$(function(){
+  $("#button").click(function(){
+    var ajaxRequest = $.ajax({
+        type: "POST",
+        url: "http://3.81.233.114:8080/documentsqa",
+        data: JSON.stringify({
+            "paragraph": $("#paragraph").val(),
+            "question": $("#question").val()
+        }),
+        contentType: "text/plain; charset=utf-8",
+        dataType: "text",
+        success: function (data) {
+               $("#answer").text(data);
+            },
+        error: function (xhr, ajaxOptions, thrownError) {
+               $("#answer").text("Failure");
+               console.log("Error")
+            }
+    });
+
+  });
+});
+</script>
+
+<style>
+
+.answer{
+    padding: 30px 40px;
+    margin-left: 350px;
+    font-size: 30px;
+}
+.btn-primary{
+    padding: 10px 50px;
+    font-size: 20px;
+    background-color: #25bd59 !important;
+    border-color: #25bd59 !important;
+}
+
+.form-control{
+    padding: 10px 30px;
+    font-size: 20px;
+}
+
+.label{
+    font-size: 30px;
+}
+.green{
+    color: #25bd59;
+    background-color: #25bd59;
+}
+div 
+{
+    height: 70px;
+    width: 100%;
+    display: block;
+    position: relative;
+}
+.banner{
+    width: 500px;
+    height: 250px;
+    background-image: url("/static/sdl.png");
+    background-repeat: no-repeat;
+    margin-left: 25px;
+    position:absolute;
+    top:10px;
+}
+.row {
+  display: flex;
+}
+
+.column {
+  flex: 50%;
+}
+</style>
+
+<body>
+<div class="green">
+<div class="banner">
+</div>
+</div>
+
+<div class="row">
+<div class="column">
+    <p>
+    </p>
+    <label for="Paragraph" class="label" style="margin-left:50px">Paragraph</label>
+    <p>
+    </p>
+    <textarea class="form-control" style="max-width: 100%; margin-left:50px" id="paragraph" rows="15">
+    </textarea>
+</div>
+<div class="column">
+    <p>
+    </p>
+    <label for="Question" class="label" style="margin-left:150px">Question</label>
+    <p>
+    </p>
+    <textarea class="form-control" style="max-width: 50%;margin-left:150px" id="question" rows="2">
+    </textarea>
+    <p>
+       
+    </p>
+    <label for="Answer" class="label" style="margin-left:150px">Answer</label>
+    <p>
+    </p>
+    <label id="answer" class="label" style="margin-left:150px"></label>
+</div>
+<div>
+    <button id="button" class="btn btn-primary" style="margin-left:1650px;margin-top:30px"> Get Answer! </button>
+</div>
+</div>
+</body>
+</html>
