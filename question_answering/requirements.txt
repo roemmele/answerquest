@@ -1,0 +1,6 @@
+pytorch
+transformers
+rank-bm25
+nltk
+flask
+flask-cors
