@@ -1,5 +1,5 @@
 pytorch
-transformers
+transformers==2.1.2
 rank-bm25
 nltk
 flask
