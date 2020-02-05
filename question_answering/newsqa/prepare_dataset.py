@@ -76,7 +76,7 @@ if __name__ == "__main__":
     name = args.output_file_name
 
     ### trial to see if everything is correct
-    docs = docs[:100]
+    ##docs = docs[:100]
 
     bert_model = 'bert-base-uncased'
     do_lower_case = True
