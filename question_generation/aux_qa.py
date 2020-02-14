@@ -12,15 +12,20 @@ from question_answering import document_bert_inference as br
 
 torch.manual_seed(0)
 
-MAX_SEQ_LENGTH = 384
-batch_size = 256
-model_path = os.path.join(os.path.expanduser("~"),
-                          "question_answering/squad_newsqa_model/checkpoint-59499")
-model, tokenizer, device = br.load_model(model_path)
+model = None
+tokenizer = None
+device = None
 
 
-def answer_questions(texts, questions):
-    answers = br.batch_inference(questions, texts, model, tokenizer, device, MAX_SEQ_LENGTH, batch_size)
+def init_qa_pipeline(model_path):
+    global model
+    global tokenizer
+    global device
+    model, tokenizer, device = br.load_model(model_path)
+
+
+def answer_questions(texts, questions, max_seq_length=384, batch_size=256):
+    answers = br.batch_inference(questions, texts, model, tokenizer, device, max_seq_length, batch_size)
     return answers
 
 

@@ -1,4 +1,10 @@
 import sys
+import os
+root_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.realpath(__file__))))
+sys.path.insert(0, root_dir)
+sys.path.insert(1, os.path.join(root_dir, "question_answering/demo_inference/"))
+
+import argparse
 import json
 import numpy
 import warnings
@@ -9,30 +15,44 @@ import torch
 from onmt.bin.translate import translate, _get_parser
 from onmt.translate.translator import build_translator
 from transformers import GPT2Tokenizer
-from flask import Flask, request, session, render_template, jsonify
-from question_generation import aux_qa, data_utils
+from flask import Flask, request, render_template, jsonify
+from question_generation import utils
+from question_answering.demo_inference import document_bert_inference
 
 
 app = Flask(__name__)
 
 spacy_model = spacy.load('en')
 
-# Load QG model components
-tokenizer = GPT2Tokenizer.from_pretrained('/home/ec2-user/question_generation/gpt2_tokenizer_vocab/')
-parser = _get_parser()
-model_filepath = '/home/ec2-user/question_generation/model_step_5600.pt'
-qg_batch_size = 256
-qg_opt = parser.parse_args(args=['-model', model_filepath,
-                                 '-src', "",
-                                 '-batch_size', str(qg_batch_size),
-                                 '-beam_size', '5',
-                                 '-gpu', '0'
-                                 ])
-qg_top_k = 3
-qg_model = build_translator(qg_opt, report_score=True)
+torch.manual_seed(0)
 
-qa_batch_size = 256
-print("Loaded all model components\n")
+# QG and QA pipeline components are initialized in main function below
+qg_tokenizer = None
+qg_opt = None
+qg_model = None
+
+qa_tokenizer = None
+qa_model = None
+qa_device = None
+
+
+def init_qg_pipeline(tokenizer_path, model_path, batch_size=256, gpu_id=-1, beam_size=5):
+    tokenizer = GPT2Tokenizer.from_pretrained(tokenizer_path)
+    parser = _get_parser()
+    opt = parser.parse_args(args=['-model', model_path,
+                                  '-src', "",
+                                  '-batch_size', str(batch_size),
+                                  '-beam_size', str(beam_size),
+                                  '-gpu', str(gpu_id),
+                                  ])
+    model = build_translator(opt, report_score=True)
+    print("Loaded all model components\n")
+    return tokenizer, opt, model
+
+
+def init_qa_pipeline(model_path):
+    model, tokenizer, device = document_bert_inference.load_model(model_path)
+    return model, tokenizer, device
 
 
 @app.route('/')
@@ -121,7 +141,7 @@ def get_answer_annotated_input_sents(spacy_input_sents):
     grouped_input_sents = []  # A group is all annotated sents that map to the same original input sentence
     grouped_answers = []
     for sent in spacy_input_sents:
-        input_sents, answers = data_utils.extract_candidate_answers(sent)
+        input_sents, answers = utils.extract_candidate_answers(sent)
         grouped_input_sents.append(input_sents)
         grouped_answers.append(answers)
     return grouped_input_sents, grouped_answers
@@ -169,7 +189,7 @@ def annotate_generate_filter_questions(spacy_input_sents, top_k=3):
 
 def generate_questions(input_sents):
     print("Generating questions...")
-    input_sents = [" ".join(data_utils.tokenize_fn(tokenizer, sent)) for sent in input_sents]
+    input_sents = [" ".join(utils.tokenize_fn(qg_tokenizer, sent)) for sent in input_sents]
     input_sents = [sent if sent else "." for sent in input_sents]  # Program crashes on empty inputs
     scores, gen_qs = qg_model.translate(
         src=[sent.encode() for sent in input_sents[:qg_opt.shard_size]],
@@ -177,23 +197,42 @@ def generate_questions(input_sents):
         batch_type=qg_opt.batch_type,
     )
     scores = [score[0].item() for score in scores]
-    gen_qs = [data_utils.detokenize_fn(tokenizer, gen_q[0].strip().split(" ")).replace("\n", " ")
+    gen_qs = [utils.detokenize_fn(qg_tokenizer, gen_q[0].strip().split(" ")).replace("\n", " ")
               for gen_q in gen_qs]
     print("Done")
     return gen_qs, scores
 
 
-def answer_questions(input_texts, questions):
+def answer_questions(input_texts, questions, max_seq_length=384, batch_size=256):
     answers = []
     print("Answering questions...")
-    for batch_idx in range(0, len(questions), qa_batch_size):
-        batch_answers = [aux_qa.strip_answer(answer) for answer in
-                         aux_qa.answer_questions(input_texts[batch_idx:batch_idx + qa_batch_size],
-                                                 questions[batch_idx:batch_idx + qa_batch_size])]
+    for batch_idx in range(0, len(questions), batch_size):
+        batch_answers = document_bert_inference.batch_inference(questions[batch_idx:batch_idx + batch_size],
+                                                                input_texts[batch_idx:batch_idx + batch_size],
+                                                                qa_model, qa_tokenizer, qa_device,
+                                                                max_seq_length, batch_size)
+        batch_answers = [utils.strip_answer(answer) for answer in batch_answers]
         answers.extend(batch_answers)
     print("Done")
     return answers
 
 
 if __name__ == '__main__':
-    app.run(port=8082, host="0.0.0.0", debug=True)
+    parser = argparse.ArgumentParser(description="Run server that generates Q&A pairs.",
+                                     formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+    parser.add_argument("--qg_tokenizer_path", "-qg_tokenizer_path", help="Specify path to HuggingFace GPT2Tokenizer config files.",
+                        type=str, required=True)
+    parser.add_argument("--qg_model_path", "-qg_model_path", help="Specify path to PyTorch question generation model.",
+                        type=str, required=True)
+    parser.add_argument("--qa_model_path", "-qa_model_path", help="Specify path to PyTorch question answering model.",
+                        type=str, required=True)
+    parser.add_argument("--gpu_id", "-gpu_id", help="Specify GPU ID, if available (will default to CPU if not given).",
+                        type=int, required=False, default=-1)
+    parser.add_argument("--port", "-port", help="Specify port number for server.",
+                        type=int, required=False, default=8082)
+    args = parser.parse_args()
+
+    qg_tokenizer, qg_opt, qg_model = init_qg_pipeline(args.qg_tokenizer_path, args.qg_model_path, gpu_id=args.gpu_id)
+    qa_model, qa_tokenizer, qa_device = init_qa_pipeline(args.qa_model_path)
+
+    app.run(port=args.port, host="0.0.0.0", debug=True)
