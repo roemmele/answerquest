@@ -8,8 +8,11 @@ This folder contains a Flask app that runs question-answer pair generation as a 
 This code requires the packages numpy, pytorch, flask, spacy, nlkt, OpenNMT-py, rank-bm25, and transformers. You can create a conda environment with these dependencies via:
 
 `conda create --name my_qg_env python=3 numpy pytorch flask spacy nltk`
+
 `conda activate my_qg_env`
+
 `pip install OpenNMT-py rank_bm25 transformers`
+
 `python -m spacy download en` (This downloads the required english model file for spaCy text processing)
 
 ## Running the code
