@@ -223,8 +223,7 @@ def extract_candidate_answers(spacy_sent):
     # Filter duplicates appearing in both noun chunks and named entities
     cand_answers = {cand_answer.start_char: cand_answer for cand_answer in cand_answers}.values()
     cand_answers = {cand_answer.end_char: cand_answer for cand_answer in cand_answers}.values()
-    annotated_sents = []
-    sent_answers = []
+    annotated_sents_with_answers = {}
     for cand_answer in cand_answers:
          # Answer start and end indicies are relative to overall text, so adjust to get indices within this sentence
         answer_start_char = cand_answer.start_char - spacy_sent[0].idx
@@ -237,9 +236,13 @@ def extract_candidate_answers(spacy_sent):
         annotated_sent = (annotated_sent[:answer_end_char + len("<ANSWER> ")]
                           + " </ANSWER>"
                           + annotated_sent[answer_end_char + len("<ANSWER> "):])
-        annotated_sents.append(annotated_sent)
-        sent_answers.append(cand_answer.text.strip())
-    return annotated_sents, sent_answers
+        if annotated_sent not in annotated_sents_with_answers:
+            annotated_sents_with_answers[annotated_sent] = cand_answer.text.strip()
+    if annotated_sents_with_answers:
+        annotated_sents, sent_answers = zip(*annotated_sents_with_answers.items())
+    else:
+        annotated_sents, sent_answers = (), ()
+    return list(annotated_sents), list(sent_answers)
 
 
 def get_other_phrases(spacy_sent):
