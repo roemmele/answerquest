@@ -5,7 +5,7 @@ setuptools.setup(
     version="1.0.0",
     author="SDL Research",
     packages=setuptools.find_packages(),
-    setup_requires=['spacy'],
+    setup_requires=['spacy', 'nltk'],
     install_requires=['numpy',
                       'torch<1.6',
                       'spacy',
@@ -18,6 +18,8 @@ setuptools.setup(
     include_package_data=True
 )
 
-# Download the required spacy model
+# Download the required spacy and nltk models
 import spacy
 spacy.cli.download('en')
+import nltk
+nltk.download('punkt')
