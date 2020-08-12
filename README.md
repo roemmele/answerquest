@@ -10,7 +10,7 @@ You can install the answerquest library directly from this repo using pip:
 
 This should install all the required dependencies (which includes pytorch, transformers, and spacy).
 
-To run the library, you'll also need the question generation (QG) and question answering (QA) model files. You can run the download script in the top level of the repo:
+To run the library, you'll also need the question generation (QG) and question answering (QA) model files. To download these files, clone the repo and run the download script in the top level of the repo:
 
 `bash download_models.sh` 
 
@@ -18,7 +18,7 @@ This will download the folders "qg_augmented_model/" and "doc_qa_model/" in the 
 
 ## Usage
 
-test.py shows an example of how to interact with the library. First load the pipeline by specifying the model files as arguments. For example, assuming the model files are in your current working directory:
+In this repo, test.py shows an example of how to interact with the library. First load the pipeline by specifying the model files as arguments. For example, assuming the model files are in your current working directory:
 
 ```
 In [1]: from answerquest import QnAPipeline
@@ -61,7 +61,7 @@ Out[28]: 'pie.'
 
 ### Script
 
-The provided script "generate_qna.py" in scripts/ will produce question-answer items for each text in a file of newline-separated texts. See `python generate_qna.py -h` for details:
+The script "generate_qna.py" provided here in this repo in scripts/ will produce question-answer items for each text in a file of newline-separated texts. See `python generate_qna.py -h` for details:
 
 `usage: generate_qna.py [-h] --qg_tokenizer_path QG_TOKENIZER_PATH --qg_model_path QG_MODEL_PATH --qa_model_path QA_MODEL_PATH
                        --input_texts_path INPUT_TEXTS_PATH --qna_save_path QNA_SAVE_PATH [--qg_batch_size QG_BATCH_SIZE]
@@ -70,6 +70,7 @@ The provided script "generate_qna.py" in scripts/ will produce question-answer i
 For example:
 
 `python generate_qna.py -qg_tokenizer_path qg_augmented_model/gpt2_tokenizer_vocab -qg_model_path qg_augmented_model/qg_augmented_model.pt -qa_model_path doc_qa_model/checkpoint-59499 -input_texts_path [INPUT_TEXT_FILE] -qna_save_path [OUTPUT_JSON_FILE] -filter_duplicate_answers -filter_redundant -sort_by_sent_order`
+
 ### Service
 
 #### Q&A Generation
