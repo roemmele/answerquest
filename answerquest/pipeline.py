@@ -1,12 +1,8 @@
-import sys
-import os
-root_dir = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
-sys.path.insert(0, root_dir)
-sys.path.insert(1, os.path.join(root_dir, "question_answering/demo_inference/"))
-
 import warnings
 warnings.filterwarnings('ignore')
 
+import logging
+import os
 import numpy
 import spacy
 import torch
@@ -14,25 +10,19 @@ import re
 from onmt.bin.translate import translate, _get_parser
 from onmt.translate.translator import build_translator
 from transformers import GPT2Tokenizer
-from gensim.summarization import summarizer
 
-from sklearn.feature_extraction.text import CountVectorizer
-from sklearn.metrics.pairwise import cosine_similarity
-
-from question_generation import utils
-from question_answering.demo_inference import document_bert_inference
+from . import utils
+from .question_answering import document_bert_inference
 
 
 numpy.random.seed(0)
 torch.manual_seed(0)
 spacy_model = spacy.load('en')
-
+logger = logging.getLogger(__name__)
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
 def sort_questions_by_score(sent_idxs, questions, scores):
-    # import pdb
-    # pdb.set_trace()
     sorted_q_idxs = numpy.argsort(scores)[::-1]
     sent_idxs, questions, scores = zip(*[(sent_idxs[idx], questions[idx], scores[idx])
                                          for idx in sorted_q_idxs])
@@ -46,7 +36,6 @@ def filter_duplicate_questions(sent_idxs, questions):
     items_by_question = {}
     for sent_idx, question in zip(sent_idxs, questions):
         if question not in items_by_question:
-                # or question_score > q_items_by_question[question][1]):
             items_by_question[question] = sent_idx
 
     sent_idxs, questions = zip(*[(sent_idx, question)
@@ -55,73 +44,19 @@ def filter_duplicate_questions(sent_idxs, questions):
     return sent_idxs, questions
 
 
-def filter_qa_items_by_sent_idx(sent_idxs, questions, answers):
-    '''Only return one question-answer item per original input sentence.
-    Assumes items are already sorted by QG score, so return first item per sentence.'''
-
-    items_by_sent_idx = {}
-    for sent_idx, question, answer in zip(sent_idxs, questions, answers):
-        if sent_idx not in items_by_sent_idx:
-            items_by_sent_idx[sent_idx] = (question, answer)
-    sent_idxs, q_items = zip(*items_by_sent_idx.items())
-    questions, answers = zip(*items)
-    return sent_idxs, questions, answers
-
-
 def sort_qa_items_by_sent_idx(sent_idxs, questions, answers):
     '''Reorder Q&A pairs according to order of sentences they were originally derived from'''
+
     sent_idxs_sort_order = numpy.argsort(sent_idxs)
     sent_idxs, questions, answers = zip(*[(sent_idxs[idx], questions[idx], answers[idx])
                                           for idx in sent_idxs_sort_order])
     return sent_idxs, questions, answers
 
 
-def filter_qa_items_by_centrality(sent_idxs, questions, answers, max_items=None):
-
-    sent_idxs, questions, answers = list(sent_idxs), list(questions), list(answers)
-
-    selected_sent_idxs = []
-    selected_questions = []
-    selected_answers = []
-
-    # Convert Q&A pairs to bag-of-words vectors
-    vectorizer = CountVectorizer(stop_words='english')
-    qa_pair_vectors = vectorizer.fit_transform([question + " " + answer for question, answer
-                                                in zip(questions, answers)]).toarray()
-
-    centroid_vector = qa_pair_vectors.sum(axis=0)
-
-    centroid_sim_scores = cosine_similarity(centroid_vector[None],
-                                            qa_pair_vectors)[0]
-
-    while questions and (not max_items or len(selected_questions) < max_items):
-
-        centroid_sim_scores = cosine_similarity(centroid_vector[None],
-                                                qa_pair_vectors)[0]
-        selected_item_idx = numpy.argmax(centroid_sim_scores, axis=0)
-
-        selected_sent_idx = sent_idxs[selected_item_idx]
-        selected_sent_idxs.append(selected_sent_idx)
-
-        selected_question = questions[selected_item_idx]
-        selected_questions.append(selected_question)
-
-        selected_answer = answers[selected_item_idx]
-        selected_answers.append(selected_answer)
-
-        centroid_vector = centroid_vector - qa_pair_vectors[selected_item_idx]
-
-        qa_pair_vectors = numpy.delete(qa_pair_vectors, selected_item_idx, 0)
-        sent_idxs.pop(selected_item_idx)
-        questions.pop(selected_item_idx)
-        answers.pop(selected_item_idx)
-
-    return tuple(selected_sent_idxs), tuple(selected_questions), tuple(selected_answers)
-
-
 def filter_redundant_qa_items(sent_idxs, questions, answers, score_threshold=0.6):
     '''Filter questions with the same sentence index that have the same answer.
     Assumes questions are ordered by score, so only highest-scoring question will be kept'''
+
     tokenizer = re.compile(r"(?u)\b[a-zA-Z0-9]+\b").findall
     items_by_sent_idx = {}
     for sent_idx, question, answer in zip(sent_idxs, questions, answers):
@@ -150,8 +85,7 @@ def filter_redundant_qa_items(sent_idxs, questions, answers, score_threshold=0.6
 def filter_questions_with_duplicate_answers(sent_idxs, questions, answers):
     '''Filter questions with the same sentence index that have the same answer.
     Assumes questions are ordered by score, so only highest-scoring question will be kept'''
-    # import pdb
-    # pdb.set_trace()
+
     items_by_answer = {}
     for sent_idx, question, answer in zip(sent_idxs, questions, answers):
         if answer not in items_by_answer:
@@ -185,16 +119,17 @@ class QnAPipeline():
                                       '-gpu', '0' if device.type == 'cuda' else '-1',
                                       ])
         model = build_translator(opt, report_score=True)
-        print("Loaded all QG model components")
+        logger.info("Loaded all QG model components")
         return tokenizer, opt, model
 
     def init_qa_pipeline(self, model_path):
         model, tokenizer, _ = document_bert_inference.load_model(model_path)
-        print("Loaded all QA model components")
-        return model, tokenizer  # , device
+        logger.info("Loaded all QA model components")
+        return model, tokenizer
 
-    def generate_qna_items(self, input_text, qg_batch_size=256,
-                           qa_batch_size=256, max_qg_input_length=200):
+    def generate_qna_items(self, input_text, qg_batch_size=256, qa_batch_size=256,
+                           max_qg_input_length=200, filter_duplicate_answers=False,
+                           filter_redundant=False, sort_by_sent_order=False):
         spacy_input_sents = list(spacy_model(input_text).sents)
 
         qg_input_sents = [sent.text for sent in spacy_input_sents]
@@ -209,8 +144,8 @@ class QnAPipeline():
         # immediately before and after this sentence.
         qa_input_chunks = [" ".join(qg_input_sents[max(0, sent_idx - 1):sent_idx + 2])
                            for sent_idx in sent_idxs]
-        answers = self.answer_questions(qa_input_chunks, questions,
-                                        batch_size=qa_batch_size)
+        answers = self.answer_paragraph_level_questions(qa_input_chunks, questions,
+                                                        batch_size=qa_batch_size)
         # Filter questions that don't have answers
         items = [(sent_idx, question, answer) for sent_idx, question, answer
                  in zip(sent_idxs, questions, answers) if answer]
@@ -222,7 +157,26 @@ class QnAPipeline():
         # Release memory
         torch.cuda.empty_cache()
 
-        assert len(sent_idxs) == len(questions) == len(answers)
+        if filter_duplicate_answers:
+            (sent_idxs,
+             questions,
+             answers) = filter_questions_with_duplicate_answers(sent_idxs,
+                                                                questions,
+                                                                answers)
+
+        if filter_redundant:
+            (sent_idxs,
+             questions,
+             answers) = filter_redundant_qa_items(sent_idxs,
+                                                  questions,
+                                                  answers)
+
+        if sort_by_sent_order:
+            (sent_idxs,
+             questions,
+             answers) = sort_qa_items_by_sent_idx(sent_idxs,
+                                                  questions,
+                                                  answers)
 
         return sent_idxs, questions, answers
 
@@ -230,7 +184,6 @@ class QnAPipeline():
         grouped_input_sents = []  # A group is all annotated sents that map to the same original input sentence
         grouped_answers = []
         for sent in spacy_input_sents:
-            # print(len(sent))
             # Truncate sentences longer than max_sent_length tokens.
             # The QG model runs out of memory on long segments.
             sent = sent[:max_input_length]
@@ -259,8 +212,8 @@ class QnAPipeline():
         input_sents = [sent for sents in grouped_input_sents
                        for sent in sents]
         questions, scores = self.generate_questions(input_sents, batch_size)
-        if not questions and not scores:
-            return [], [], []
+        if not questions:
+            return [], []
         # Reshape questions/scores into groups
         grouped_questions, grouped_scores = zip(*[(questions[start_idx:end_idx], scores[start_idx:end_idx])
                                                   for start_idx, end_idx in zip(group_boundary_idxs[:-1],
@@ -278,11 +231,10 @@ class QnAPipeline():
         sent_idxs, questions = filter_duplicate_questions(sent_idxs,
                                                           questions)
 
-        assert len(sent_idxs) == len(questions)  # == len(scores)
-        return sent_idxs, questions  # , scores
+        return sent_idxs, questions
 
     def generate_questions(self, input_sents, batch_size=256):
-        print("Generating questions...")
+        logger.info("Generating questions...")
         input_sents = [" ".join(utils.tokenize_fn(self.qg_tokenizer, sent)) for sent in input_sents]
         input_sents = [sent if sent else "." for sent in input_sents]  # Program crashes on empty inputs
         try:
@@ -294,16 +246,20 @@ class QnAPipeline():
             scores = [score[0].item() for score in scores]
             gen_qs = [utils.detokenize_fn(self.qg_tokenizer, gen_q[0].strip().split(" ")).replace("\n", " ")
                       for gen_q in gen_qs]
-            print("QG complete")
+            logger.info("QG complete")
         except:
-            print("QG failed on input with {} sentences:".format(len(input_sents)), input_sents)
+            logger.info("QG failed on input with {} sentences:".format(len(input_sents)), input_sents)
             gen_qs = []
             scores = []
         return gen_qs, scores
 
-    def answer_questions(self, input_texts, questions, max_seq_length=384, batch_size=256):
+    def answer_paragraph_level_questions(self, input_texts, questions,
+                                         max_seq_length=384, batch_size=256):
+        '''Performs QA for several question/paragraph pairs.
+        One-to-one relation between each input text (i.e. paragraph) in input_texts
+        and each question in questions. Entire paragraph will be searched for answer to question'''
         answers = []
-        print("Answering questions...")
+        logger.info("Answering questions...")
         for batch_idx in range(0, len(questions), batch_size):
             batch_answers = document_bert_inference.batch_inference(
                 questions[batch_idx:batch_idx + batch_size],
@@ -313,5 +269,38 @@ class QnAPipeline():
             )
             batch_answers = [utils.strip_answer(answer) for answer in batch_answers]
             answers.extend(batch_answers)
-        print("QA complete")
+        logger.info("QA complete")
         return answers
+
+    def answer_document_level_question(self, input_text, question, max_seq_length=384, top_k=4,
+                                       is_token=True, max_tokens=300, sliding_size=4,
+                                       sliding_stride=2, shared_norm=False):
+        '''Performs QA for a single question and a single multi-paragraph document (input_text).
+        Apply paragraph relevance ranking to get top_k most relevant paragraphs, then
+        search these paragraphs specifically for the answers'''
+
+        input_text = input_text.replace("\n", " ")
+        input_text = input_text.replace("\r", " ")
+        input_text = input_text.replace("\r\n", " ")
+
+        if is_token:
+            (original_paragraphs,
+             bm25) = document_bert_inference.process_document(input_text,
+                                                              self.qa_tokenizer,
+                                                              max_tokens)
+        else:
+            (original_paragraphs,
+             bm25) = document_bert_inference.process_sliding_document(input_text,
+                                                                      self.qa_tokenizer,
+                                                                      sliding_size, sliding_stride)
+        obj = document_bert_inference.return_question_paragraph(question, original_paragraphs,
+                                                                bm25, self.qa_tokenizer, k=top_k)
+        if not shared_norm:
+            ans = document_bert_inference.inference(obj, self.qa_model, self.qa_tokenizer,
+                                                    device, max_option=True)
+        else:
+            ans = document_bert_inference.inference(obj, self.qa_model, self.qa_tokenizer,
+                                                    device, max_option=False)
+        if ans != "":
+            return ans
+        return "Sorry, the answer cannot be found ....."

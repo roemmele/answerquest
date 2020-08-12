@@ -1,6 +1,6 @@
 import sys
 import os
-root_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.realpath(__file__))))
+root_dir = os.path.realpath('../')
 sys.path.insert(0, root_dir)
 
 import warnings
@@ -10,15 +10,11 @@ import argparse
 import json
 from flask import Flask, request, render_template, jsonify
 
-from question_generation.pipeline import (QnAPipeline, filter_questions_with_duplicate_answers,
-                                          filter_redundant_qa_items, sort_qa_items_by_sent_idx)
+from answerquest import QnAPipeline
 
 app = Flask(__name__)
 
 qna_pipeline = None
-filter_duplicate_answers = True
-filter_redundant_items = True
-sort_by_sent_order = True
 
 
 @app.route('/')
@@ -31,28 +27,12 @@ def index():
 def serve_qna_items():
     try:
         input_text = request.values['input_text']
-        sent_idxs, questions, answers = qna_pipeline.generate_qna_items(input_text)
-
-        if filter_duplicate_answers:
-            (sent_idxs,
-             questions,
-             answers) = filter_questions_with_duplicate_answers(sent_idxs,
-                                                                questions,
-                                                                answers)
-
-        if filter_redundant_items:
-            (sent_idxs,
-             questions,
-             answers) = filter_redundant_qa_items(sent_idxs,
-                                                  questions,
-                                                  answers)
-
-        if sort_by_sent_order:
-            (sent_idxs,
-             questions,
-             answers) = sort_qa_items_by_sent_idx(sent_idxs,
-                                                  questions,
-                                                  answers)
+        (sent_idxs,
+         questions,
+         answers) = qna_pipeline.generate_qna_items(input_text,
+                                                    filter_duplicate_answers=True,
+                                                    filter_redundant=True,
+                                                    sort_by_sent_order=True)
 
     except Exception as e:
         print(e)

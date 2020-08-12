@@ -1,0 +1,65 @@
+* {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+}
+.form-group{
+  padding:0 0 0 0;
+}
+.button{
+  font-family:Helvetica, serif;
+  font-weight:100;
+  color:#000000;
+  background-color:#98e1bc;
+  margin:10px 35% auto 35%;
+  width:30%;
+}
+.input{
+  font-family:Helvetica, serif;
+  font-weight:100;
+  min-height:500px;
+  display:inherit;
+  line-height:21px;
+  transition:width 2s ease;
+  padding:10px 10px 10px 10px;
+  width:100%;
+}
+.form{
+  margin:0 0 0 0;
+  border:0 none #000000;
+  background-color:rgba(255,255,255,0);
+  border-radius:0 0 0 0;
+  opacity:1;
+  display:inherit;
+  box-shadow:0 0 0 0 rgba(0,0,0,0) ;
+  padding:0 0 0 0;
+}
+#QA_div{
+  border:1px none #000000;
+  margin:0 auto 0 auto;
+  max-width:auto;
+  width:95%;
+  padding:25px 10px 25px 10px;
+  display:none;
+  background-color:#98e1bc;
+  border-radius:10px 10px 10px 10px;
+}
+#QA_header{
+  font-family:Helvetica, serif;
+  color:rgb(33, 37, 41);
+  display:inherit;
+  font-weight:200;
+}
+#QA_pairs{
+  font-family:Helvetica, serif;
+  font-weight:100;
+  display:inherit;
+  white-space: pre-wrap;
+}
+#QA_input_col{
+  padding:20px 20px 20px 20px;
+}
+#QA_output_col{
+  padding:20px 20px 20px 20px;
+}

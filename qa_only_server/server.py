@@ -1,5 +1,11 @@
+import sys
+import os
+root_dir = os.path.realpath('../')
+sys.path.insert(0, root_dir)
+
+import argparse
 from flask import Flask, request, jsonify, render_template
-import document_bert_inference as br
+from answerquest.question_answering import document_bert_inference as br
 from flask_cors import CORS
 
 app = Flask(__name__)
@@ -12,7 +18,7 @@ max_tokens = 300
 sliding_size = 4
 sliding_stride = 2
 shared_norm = False
-model, tokenizer, device = br.load_model('squad_newsqa_model/checkpoint-59499')
+model, tokenizer, device = None, None, None
 
 
 @app.route('/')
@@ -47,4 +53,11 @@ def document_predict():
 
 
 if __name__ == '__main__':
+    parser = argparse.ArgumentParser(description="Run server that answers questions from input text.",
+                                     formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+    parser.add_argument("--model_path", "-model_path",
+                        help="Specify path to PyTorch question answering model.",
+                        type=str, required=True)
+    args = parser.parse_args()
+    model, tokenizer, device = br.load_model(args.model_path)
     app.run(port=8080, host="0.0.0.0", debug=True)

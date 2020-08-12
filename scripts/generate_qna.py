@@ -1,7 +1,15 @@
+import sys
+import os
+root_dir = os.path.realpath('../')
+sys.path.insert(0, root_dir)
+
+import logging
 import argparse
 import json
 
-from pipeline import QnAPipeline
+from answerquest import QnAPipeline
+
+logging.basicConfig(level=os.environ.get('LOGGING_LEVEL', 'INFO'))
 
 
 def generate(args):
@@ -19,11 +27,13 @@ def generate(args):
 
     for idx, text in enumerate(input_texts):
         if text.strip():
-            (sent_idxs,
-             questions,
-             answers) = qna_pipeline.generate_qna_items(input_text=text,
-                                                        qg_batch_size=args.qg_batch_size,
-                                                        qa_batch_size=args.qa_batch_size)
+            sent_idxs, questions, answers = qna_pipeline.generate_qna_items(
+                input_text=text,
+                qg_batch_size=args.qg_batch_size,
+                qa_batch_size=args.qa_batch_size,
+                filter_duplicate_answers=args.filter_duplicate_answers,
+                filter_redundant=args.filter_redundant,
+                sort_by_sent_order=args.sort_by_sent_order)
         else:
             sent_idxs, questions, answers = [], [], []
         sent_idxs_by_text.append(sent_idxs)
@@ -63,6 +73,17 @@ if __name__ == "__main__":
     parser.add_argument("--qa_batch_size", "-qa_batch_size",
                         help="Specify batch size for question answering model.",
                         type=int, required=False, default=256)
+    parser.add_argument("--filter_duplicate_answers", "-filter_duplicate_answers",
+                        help="Enforce all generated items to have unique answers (for duplicates, only keep item with highest QG score)",
+                        action='store_true', default=False)
+    parser.add_argument("--filter_redundant", "-filter_redundant",
+                        help="Apply a filter that computes token-based Jaccard similarity between all items.\
+                        For items with high similarity, only keep the one with the highest QG score.",
+                        action='store_true', default=False)
+    parser.add_argument("--sort_by_sent_order", "-sort_by_sent_order",
+                        help="Return items according to the original order of the sentences they were derived from\
+                        (instead of ordered by QG score)",
+                        action='store_true', default=False)
     args = parser.parse_args()
     print(vars(args))
 

@@ -1,6 +1,6 @@
 import torch
 from transformers import BertTokenizer
-from model import BertQA
+from .model import BertQA
 import nltk
 from rank_bm25 import BM25Okapi
 import argparse
@@ -12,7 +12,7 @@ def is_whitespace(c):
     return False
 
 
-## Function to get the final processed paragraph with reverse mappings
+# Function to get the final processed paragraph with reverse mappings
 def get_tokens_original_indices(paragraph_string, tokenizer):
     whitespace_tokens = []
     tokens = []
@@ -39,6 +39,7 @@ def get_tokens_original_indices(paragraph_string, tokenizer):
 
 
 class Paragraph:
+
     def __init__(self, tokens, whitespace_tokens, tokens_to_original_index):
         self.tokens = tokens
         self.whitespace_tokens = whitespace_tokens
@@ -46,23 +47,24 @@ class Paragraph:
 
 
 class QuestionParagraph:
+
     def __init__(self, tokens, paragraphs):
         self.tokens = tokens
         self.paragraphs = paragraphs
 
 
-## Helps just in case the document remains the same
+# Helps just in case the document remains the same
 def return_bm25_object(tokenized_paragraphs):
     bm25 = BM25Okapi(tokenized_paragraphs)
     return bm25
 
 
-## Function to return the top k tokenized paragraphs
+# Function to return the top k tokenized paragraphs
 def return_top_k(bm25, original_paragraphs, tokenized_question, k):
     return bm25.get_top_n(tokenized_question, original_paragraphs, n=k)
 
 
-## Funtion to load the model and tokenizer
+# Funtion to load the model and tokenizer
 def load_model(model_dir):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     n_gpu = torch.cuda.device_count()
@@ -74,7 +76,7 @@ def load_model(model_dir):
     return model_qa, tokenizer, device
 
 
-## Slightly expensive, process once if document is the same
+# Slightly expensive, process once if document is the same
 def process_document(document, tokenizer, paragraph_size=300):
     if isinstance(document, str):
         document = nltk.sent_tokenize(document)
@@ -95,7 +97,7 @@ def process_document(document, tokenizer, paragraph_size=300):
     return original_paragraphs, bm25
 
 
-## sliding window approach with overlapping paragraphs
+# sliding window approach with overlapping paragraphs
 def process_sliding_document(document, tokenizer, paragraph_size=5, stride_size=2):
     if isinstance(document, str):
         document = nltk.sent_tokenize(document)
@@ -118,7 +120,7 @@ def process_simple_split(document, tokenizer):
     return original_paragraphs, bm25
 
 
-## get the QuestionParagraph object required for tensors
+# get the QuestionParagraph object required for tensors
 def return_question_paragraph(question, original_paragraphs, bm25, tokenizer, k=4):
     tokenized_question = tokenizer.tokenize(question)
     top_k_paragraphs = return_top_k(bm25, original_paragraphs, tokenized_question, k)
@@ -173,7 +175,7 @@ def process_single_pair(tokens_question, tokens_paragraph, max_seq_length, token
     return input_ids, input_mask, segment_ids
 
 
-## takes QuestionParagraph object as input and outputs torch tensors
+# takes QuestionParagraph object as input and outputs torch tensors
 def return_tensors(q_p_object, max_seq_length, tokenizer):
     all_input_ids = []
     all_input_mask = []
@@ -197,7 +199,7 @@ def return_original_index(index, max_seq_length, num_paragraphs):
             return (i, index - (max_seq_length * i))
 
 
-## multi-paragraph inference where single question has multiple paragraphs
+# multi-paragraph inference where single question has multiple paragraphs
 def inference(q_p_object, model_qa, tokenizer, device, max_seq_length=384, max_option=True):
     num_paragraphs_per_question = len(q_p_object.paragraphs)
     input_ids, input_mask, segment_ids = return_tensors(q_p_object, max_seq_length, tokenizer)
@@ -248,7 +250,7 @@ def inference(q_p_object, model_qa, tokenizer, device, max_seq_length=384, max_o
     return prediction
 
 
-## single paragraph-question inference but done batchwise
+# single paragraph-question inference but done batchwise
 def batch_inference(question_list, paragraph_list, model_qa, tokenizer, device, max_seq_length, batch_size=256):
     answers = []
     log_softmax = torch.nn.LogSoftmax(dim=1)
@@ -313,11 +315,11 @@ if __name__ == "__main__":
     parser.add_argument("--questions", default=None, help="Questions file")
     parser.add_argument("--model_dir", default=None, help="Directory containing the trained model checkpoint")
     args = parser.parse_args()
-    print ("Start Inference...")
+    print("Start Inference...")
 
     model, tokenizer, device = load_model(args.model_dir)
 
-    print ("Model Loaded...")
+    print("Model Loaded...")
 
     document = open(args.document).read()
     # document = document.replace("\n", " ")
@@ -336,12 +338,12 @@ if __name__ == "__main__":
 
     ##original_paragraphs, bm25 = process_simple_split(document, tokenizer)
 
-    print ("Document processed...")
-    print ()
+    print("Document processed...")
+    print()
 
     for q in questions:
         obj = return_question_paragraph(q, original_paragraphs, bm25, tokenizer, k=5)
-        print ('Question: ', q)
+        print('Question: ', q)
         ans = inference(obj, model, tokenizer, device)
-        print ('Answer: ', ans)
-        print ()
+        print('Answer: ', ans)
+        print()
