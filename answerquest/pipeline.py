@@ -14,7 +14,6 @@ from transformers import GPT2Tokenizer
 from . import utils
 from .question_answering import document_bert_inference
 
-
 numpy.random.seed(0)
 torch.manual_seed(0)
 spacy_model = spacy.load('en')
@@ -99,6 +98,51 @@ def filter_questions_with_duplicate_answers(sent_idxs, questions, answers):
     return sent_idxs, questions, answers
 
 
+class QA():
+
+    def __init__(self, model_path):
+        (self.model,
+         self.tokenizer) = self.init_qa_pipeline(model_path)
+
+    def init_qa_pipeline(self, model_path):
+        model, tokenizer, _ = document_bert_inference.load_model(model_path)
+        logger.info("Loaded all QA model components")
+        return model, tokenizer
+
+    def answer_question(self, input_text, question, max_seq_length=384, top_k=4,
+                        is_token=True, max_tokens=300, sliding_size=4,
+                        sliding_stride=2, shared_norm=False):
+        '''Performs QA for a single question and a single multi-paragraph document (input_text).
+        Apply paragraph relevance ranking to get top_k most relevant paragraphs, then
+        search these paragraphs specifically for the answers'''
+
+        input_text = input_text.replace("\n", " ")
+        input_text = input_text.replace("\r", " ")
+        input_text = input_text.replace("\r\n", " ")
+
+        if is_token:
+            (original_paragraphs,
+             bm25) = document_bert_inference.process_document(input_text,
+                                                              self.tokenizer,
+                                                              max_tokens)
+        else:
+            (original_paragraphs,
+             bm25) = document_bert_inference.process_sliding_document(input_text,
+                                                                      self.tokenizer,
+                                                                      sliding_size, sliding_stride)
+        obj = document_bert_inference.return_question_paragraph(question, original_paragraphs,
+                                                                bm25, self.tokenizer, k=top_k)
+        if not shared_norm:
+            ans = document_bert_inference.inference(obj, self.model, self.tokenizer,
+                                                    device, max_option=True)
+        else:
+            ans = document_bert_inference.inference(obj, self.model, self.tokenizer,
+                                                    device, max_option=False)
+        if ans != "":
+            return ans
+        return "Sorry, the answer cannot be found ....."
+
+
 class QnAPipeline():
 
     def __init__(self, qg_tokenizer_path, qg_model_path, qa_model_path):
@@ -107,8 +151,9 @@ class QnAPipeline():
          self.qg_opt,
          self.qg_model) = self.init_qg_pipeline(qg_tokenizer_path, qg_model_path)
 
-        (self.qa_model,
-         self.qa_tokenizer) = self.init_qa_pipeline(qa_model_path)
+        qa = QA(model_path=qa_model_path)
+        self.qa_model = qa.model
+        self.qa_tokenizer = qa.tokenizer
 
     def init_qg_pipeline(self, tokenizer_path, model_path, beam_size=5):
         tokenizer = GPT2Tokenizer.from_pretrained(tokenizer_path)
@@ -144,7 +189,8 @@ class QnAPipeline():
         # immediately before and after this sentence.
         qa_input_chunks = [" ".join(qg_input_sents[max(0, sent_idx - 1):sent_idx + 2])
                            for sent_idx in sent_idxs]
-        answers = self.answer_paragraph_level_questions(qa_input_chunks, questions,
+        answers = self.answer_paragraph_level_questions(paragraphs=qa_input_chunks,
+                                                        questions=questions,
                                                         batch_size=qa_batch_size)
         # Filter questions that don't have answers
         items = [(sent_idx, question, answer) for sent_idx, question, answer
@@ -253,17 +299,18 @@ class QnAPipeline():
             scores = []
         return gen_qs, scores
 
-    def answer_paragraph_level_questions(self, input_texts, questions,
+    def answer_paragraph_level_questions(self, paragraphs, questions,
                                          max_seq_length=384, batch_size=256):
         '''Performs QA for several question/paragraph pairs.
-        One-to-one relation between each input text (i.e. paragraph) in input_texts
-        and each question in questions. Entire paragraph will be searched for answer to question'''
+        One-to-one relation between each input text (i.e. paragraph) in paragraphs
+        and each question in questions. Entire paragraph will be searched for answer to question.
+        Does not handle multi-paragraph QA (i.e. no paragraph filtering)'''
         answers = []
         logger.info("Answering questions...")
         for batch_idx in range(0, len(questions), batch_size):
             batch_answers = document_bert_inference.batch_inference(
                 questions[batch_idx:batch_idx + batch_size],
-                input_texts[batch_idx:batch_idx + batch_size],
+                paragraphs[batch_idx:batch_idx + batch_size],
                 self.qa_model, self.qa_tokenizer, device,
                 max_seq_length, batch_size
             )
@@ -271,36 +318,3 @@ class QnAPipeline():
             answers.extend(batch_answers)
         logger.info("QA complete")
         return answers
-
-    def answer_document_level_question(self, input_text, question, max_seq_length=384, top_k=4,
-                                       is_token=True, max_tokens=300, sliding_size=4,
-                                       sliding_stride=2, shared_norm=False):
-        '''Performs QA for a single question and a single multi-paragraph document (input_text).
-        Apply paragraph relevance ranking to get top_k most relevant paragraphs, then
-        search these paragraphs specifically for the answers'''
-
-        input_text = input_text.replace("\n", " ")
-        input_text = input_text.replace("\r", " ")
-        input_text = input_text.replace("\r\n", " ")
-
-        if is_token:
-            (original_paragraphs,
-             bm25) = document_bert_inference.process_document(input_text,
-                                                              self.qa_tokenizer,
-                                                              max_tokens)
-        else:
-            (original_paragraphs,
-             bm25) = document_bert_inference.process_sliding_document(input_text,
-                                                                      self.qa_tokenizer,
-                                                                      sliding_size, sliding_stride)
-        obj = document_bert_inference.return_question_paragraph(question, original_paragraphs,
-                                                                bm25, self.qa_tokenizer, k=top_k)
-        if not shared_norm:
-            ans = document_bert_inference.inference(obj, self.qa_model, self.qa_tokenizer,
-                                                    device, max_option=True)
-        else:
-            ans = document_bert_inference.inference(obj, self.qa_model, self.qa_tokenizer,
-                                                    device, max_option=False)
-        if ans != "":
-            return ans
-        return "Sorry, the answer cannot be found ....."

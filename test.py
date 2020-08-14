@@ -3,7 +3,7 @@ import os
 import sys
 import argparse
 import unittest
-from answerquest import QnAPipeline
+from answerquest import QnAPipeline, QA
 
 logging.basicConfig(level=os.environ.get('LOGGING_LEVEL', 'INFO'))
 
@@ -38,15 +38,16 @@ qna_output = {"sent_idxs": [0, 0, 0, 1, 1, 1, 1, 2, 2, 3, 3, 3],
                           "each Super Bowl game"]}
 
 
-class TestQnAPipeline(unittest.TestCase):
+class TestPipeline(unittest.TestCase):
 
     @classmethod
     def setUpClass(self):
         self.qna_pipeline = QnAPipeline(args.qg_tokenizer_path,
                                         args.qg_model_path,
                                         args.qa_model_path)
+        self.qa_only = QA(args.qa_model_path)
 
-    def test_qna(self):
+    def test_qna_pipeline(self):
         (sent_idxs,
          questions,
          answers) = self.qna_pipeline.generate_qna_items(input_text,
@@ -65,8 +66,9 @@ class TestQnAPipeline(unittest.TestCase):
 
     def test_qa_only(self):
 
-        pred_answer = self.qna_pipeline.answer_document_level_question(input_text,
-                                                                       qna_output['questions'][0])
+        pred_answer = self.qa_only.answer_question(input_text=input_text,
+                                                   question=qna_output['questions'][0])
+
         self.assertIsNotNone(pred_answer)
         self.assertNotEqual(pred_answer, "")
 

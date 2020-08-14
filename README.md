@@ -10,7 +10,7 @@ You can install the answerquest library directly from this repo using pip:
 
 This should install all the required dependencies (which includes pytorch, transformers, and spacy).
 
-To run the library, you'll also need the question generation (QG) and question answering (QA) model files. To download these files, clone the repo and run the download script in the top level of the repo:
+To run the library, you'll also need the question generation (QG) and question answering (QA) model files (if using QA only, the QG models are not needed - see below under "Usage"). To download these files, clone the repo and run the download script in the top level of the repo:
 
 `bash download_models.sh` 
 
@@ -18,7 +18,11 @@ This will download the folders "qg_augmented_model/" and "doc_qa_model/" in the 
 
 ## Usage
 
-In this repo, test.py shows an example of how to interact with the library. First load the pipeline by specifying the model files as arguments. For example, assuming the model files are in your current working directory:
+There are two main ways to interact with the library. You can use it to perform question-answer pair generation from given a text, by loading a pipeline with the QG and QA models. Alternatively, you can use the question answering component only to obtain answers to given questions, instead of additionally performing question generation.
+
+### Q&A Pair Generation
+
+In this repo, test.py shows examples of how to interact with the library. First load the pipeline by specifying the model files as arguments. For example, assuming the model files are in your current working directory:
 
 ```
 In [1]: from answerquest import QnAPipeline
@@ -50,16 +54,23 @@ Out[5]:
  ('pie', 'The pie'))
  ```
 
-It's also possible to specify a question and text in order to obtain its answer. For example:
+### Question Answering Only
+
+If you don't need to generate questions and want to run the question answering component only, you can use the following code that loads the QA model only:
 
 ```
-In [27]: pred_answer = qna_pipeline.answer_document_level_question(input_text, question="What was eaten?")
+In [1]: from answerquest import QA
 
-In [28]: pred_answer
-Out[28]: 'pie.'
+In [2]: qa_only = QA(model_path="doc_qa_model/checkpoint-59499/")
+
+In [3]: pred_answer = qa_only.answer_question(input_text="He ate the pie. The pie was served with ice cream.",
+   ...:                                       question="What was the pie served with?")
+
+In [4]: pred_answer
+Out[4]: 'ice cream.'
 ```
 
-### Script
+## Script
 
 The script "generate_qna.py" provided here in this repo in scripts/ will produce question-answer items for each text in a file of newline-separated texts. See `python generate_qna.py -h` for details:
 
@@ -71,9 +82,9 @@ For example:
 
 `python generate_qna.py -qg_tokenizer_path qg_augmented_model/gpt2_tokenizer_vocab -qg_model_path qg_augmented_model/qg_augmented_model.pt -qa_model_path doc_qa_model/checkpoint-59499 -input_texts_path [INPUT_TEXT_FILE] -qna_save_path [OUTPUT_JSON_FILE] -filter_duplicate_answers -filter_redundant -sort_by_sent_order`
 
-### Service
+## Service
 
-#### Q&A Generation
+### Q&A Pair Generation
 
 The repo also contains an example of running Q&A generation as service. Run qna_server/server.py to start the service with the model files specified as parameters. See `python qna_server/server.py -h`:
 
@@ -97,7 +108,7 @@ Out[2]:
  'questions': ['What did he eat?', 'What was served with ice cream?']}`
 ```
 
-#### Question Answering
+### Question Answering
 
 There is also an example of running the question answering functionality only, without question generation, so that answers are predicted from an input text given a question. See `python qa_only_server/server.py -h:`
 
@@ -108,6 +119,6 @@ For example:
 `python qa_only_server/server.py -model_path doc_qa_model/checkpoint-59499/`
 
 ```
-In [10]: requests.post('http://0.0.0.0:8080/documentsqa', json={'paragraph': "He ate the pie. The pie was served with ice cream.", "question": "What was eaten?"}).text
-Out[10]: 'pie.'
+In [1]: requests.post('http://0.0.0.0:8080/documentsqa', json={'paragraph': "He ate the pie. The pie was served with ice cream.", "question": "What was the pie served with?"}).text
+Out[2]: 'ice cream.'
 ```

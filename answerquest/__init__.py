@@ -1,1 +1,1 @@
-from .pipeline import QnAPipeline
+from .pipeline import QnAPipeline, QA
