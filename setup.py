@@ -7,14 +7,14 @@ setuptools.setup(
     packages=setuptools.find_packages(),
     setup_requires=['spacy', 'nltk'],
     install_requires=['numpy',
-                      'torch<1.6',
+                      'torch==1.6.0',
                       'spacy',
                       'flask',
-                      'transformers',
+                      'transformers==3.0.2',
                       'rank-bm25',
                       'nltk',
                       'flask-cors',
-                      'OpenNMT-py'],
+                      'OpenNMT-py==1.2.0'],
     include_package_data=True
 )
 
