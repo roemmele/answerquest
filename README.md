@@ -8,7 +8,7 @@ You can install the answerquest library directly from this repo using pip:
 
 `pip install git+https://github.com/roemmele/answerquest.git`
 
-This should install all the required dependencies (which includes pytorch, transformers, and spacy).
+This should install all the required dependencies (which includes pytorch, OpenNMT-py, transformers, and spacy).
 
 To run the library, you'll also need the question generation (QG) and question answering (QA) model files (if using QA only, the QG models are not needed - see below under "Usage"). To download these files, clone the repo and run the download script in the top level of the repo:
 
