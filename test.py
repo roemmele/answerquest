@@ -3,6 +3,7 @@ import os
 import sys
 import argparse
 import unittest
+import torch
 from answerquest import QnAPipeline, QA
 
 logging.basicConfig(level=os.environ.get('LOGGING_LEVEL', 'INFO'))
@@ -74,6 +75,16 @@ class TestPipeline(unittest.TestCase):
 
         if args.analyze_output:
             self.assertEqual(pred_answer, qna_output['answers'][0])
+
+    def test_gpu_usage(self):
+        if torch.cuda.is_available():
+            self.assertEqual(self.qna_pipeline.qg_model._gpu, 0)
+            self.assertEqual(self.qna_pipeline.qa_model.device.type, "cuda")
+            self.assertEqual(self.qa_only.model.device.type, "cuda")
+        else:
+            self.assertEqual(self.qna_pipeline.qg_model._gpu, -1)
+            self.assertEqual(self.qna_pipeline.qa_model.device.type, "cpu")
+            self.assertEqual(self.qa_only.model.device.type, "cpu")
 
 
 if __name__ == '__main__':

@@ -14,6 +14,7 @@ from transformers import GPT2Tokenizer
 from . import utils
 from .question_answering import document_bert_inference
 
+torch.multiprocessing.set_start_method('spawn', force=True)
 numpy.random.seed(0)
 torch.manual_seed(0)
 spacy_model = spacy.load('en')
