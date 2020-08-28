@@ -5,6 +5,7 @@ import logging
 import os
 import numpy
 import spacy
+import en_core_web_sm  # spacy english model
 import torch
 import re
 from onmt.bin.translate import translate, _get_parser
@@ -17,7 +18,7 @@ from .question_answering import document_bert_inference
 torch.multiprocessing.set_start_method('spawn', force=True)
 numpy.random.seed(0)
 torch.manual_seed(0)
-spacy_model = spacy.load('en')
+spacy_model = en_core_web_sm.load()
 logger = logging.getLogger(__name__)
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
