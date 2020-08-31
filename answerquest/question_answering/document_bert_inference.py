@@ -5,6 +5,8 @@ import nltk
 from rank_bm25 import BM25Okapi
 import argparse
 
+nltk.download('punkt')  # Ensure sentence-segmentation model is downloaded
+
 
 def is_whitespace(c):
     if c == " " or c == "\t" or c == "\r" or c == "\n" or ord(c) == 0x202F:
