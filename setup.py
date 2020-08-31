@@ -5,6 +5,7 @@ setuptools.setup(
     version="1.0.0",
     author="SDL Research",
     packages=setuptools.find_packages(),
+    setup_requires=['nltk==3.5'],
     install_requires=['numpy==1.19.1',
                       'torch==1.6.0',
                       'spacy==2.3.2',
@@ -15,3 +16,6 @@ setuptools.setup(
                       'OpenNMT-py==1.2.0'],
     include_package_data=True
 )
+
+import nltk
+nltk.download('punkt')
