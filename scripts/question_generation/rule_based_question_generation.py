@@ -6,9 +6,6 @@ import subprocess
 
 def get_answer_annotated_data(questions, answer_sents, answers, scores,
                               min_score=0.0):
-    '''Annotate answers in input texts'''
-    # import pdb
-    # pdb.set_trace()
     filtered_questions = []
     filtered_answer_sents = []
 
@@ -58,36 +55,6 @@ def run_proc(jar_dir, input_texts):
                  'answer_sent': [],
                  'answer': [],
                  'score': []}
-    # n_parallel_procs = 50
-    # input_chunks = [input_texts[idx:idx + n_parallel_procs]
-    #                 for idx in range(0, len(input_texts), n_parallel_procs)]
-
-    # for chunk_idx, chunk in enumerate(input_chunks):
-    #     procs = [subprocess.Popen(["java", "-Xmx1200m",
-    #                                "-cp", "question-generation.jar",
-    #                                "edu/cmu/ark/QuestionAsker",
-    #                                "--verbose", "--model", "models/linear-regression-ranker-reg500.ser.gz",
-    #                                "--just-wh", "--max-length", "30", "--downweight-pro",
-    #                                "--properties", args.config_file],
-    #                               stdin=subprocess.PIPE, stdout=subprocess.PIPE)
-    #              for text in chunk]
-    #     print("Processing texts in chunk...")
-    #     proc_outputs = [[proc_output.split("\t") for proc_output in
-    #                      proc.communicate(text.encode())[0].decode('utf-8').strip().split("\n")]
-    #                     for proc, text in zip(procs, chunk)]
-    #     for output_idx, output in enumerate(proc_outputs):
-    #         # import pdb
-    #         # pdb.set_trace()
-    #         try:
-    #             for question, answer_sent, answer, score in output:
-    #                 qg_output['text_id'].append(args.start_idx + (chunk_idx * n_parallel_procs) + output_idx)
-    #                 qg_output['question'].append(question)
-    #                 qg_output['answer_sent'].append(answer_sent)
-    #                 qg_output['answer'].append(answer)
-    #                 qg_output['score'].append(float(score))
-    #         except:  # Possibly no questions were returned (e.g. error in parsing)
-    #             continue
-    #     print("PROCESSED TEXTS UP TO INDEX", args.start_idx + (chunk_idx + 1) * n_parallel_procs, "\n")
 
     for text_idx, text in enumerate(input_texts):
         proc = subprocess.Popen(["java", "-Xmx1200m",
@@ -99,8 +66,7 @@ def run_proc(jar_dir, input_texts):
                                 stdin=subprocess.PIPE, stdout=subprocess.PIPE)
         proc_outputs = [proc_output.split("\t") for proc_output in
                         proc.communicate(text.encode())[0].decode('utf-8').strip().split("\n")]
-        # import pdb
-        # pdb.set_trace()
+
         try:
             for question, answer_sent, answer, score in proc_outputs:
                 #qg_output['text_id'].append(args.start_idx + text_idx)
@@ -142,7 +108,6 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     with open(args.input_file) as f:
-        # [args.start_idx:args.end_idx]
         input_texts = [text.strip() for text in f]
 
     orig_dir = os.path.dirname(os.path.abspath(__file__))
