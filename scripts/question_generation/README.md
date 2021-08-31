@@ -1,73 +1,91 @@
-# Creating a Question Generation (QG) Model
+# Creating the Question Generation (QG) Model
 
 Make sure you've installed the library dependencies in the top-level setup.py.
 
-## Data Pre-processing
+## 1. Data Pre-Processing
 
 In order to train a question generation model using our approach, you'll first need to tokenize a Q&A dataset where the answers to questions are annotated within the texts containing those answers. The QG model observes these answer-annotated texts during training. 
 
-A tiny sample of SquAD/NewsQA items is provided in sample_data/ to show these steps, split into train/ and valid/ sets for a complete illustration. Note that these items have already been processed with the structure expected by the following scripts, so you'll want to emulate this design. Importantly, each line in questions.txt corresponds to a line in answer_sents.txt. The sentence in answer_sents.txt has annotations (i.e. \<ANSWER\>,\<\/ANSWER\>) that designate the start and end of the answer span pertaining to the corresponding question. 
+A tiny sample of SquAD/NewsQA items is provided in sample_data/ which is used here to illustrate the data processing steps. In particular, for the data in untokenized/ used as the initial input to the processing pipeline, each line in questions.txt corresponds to a line in input_texts.txt. Each text in input_texts.txt has annotations (i.e. \<ANSWER\>,\<\/ANSWER\>) that designate the start and end of the answer span pertaining to the corresponding question.
 
-First, we used the GPT-2 tokenizer provided by HuggingFace (link) to tokenize the texts prior to training. We adapted the tokenizer to handle the answer markers as special tokens so that they are not split into subtokens. To download and create the adapted tokenizer vocabulary, we ran:
+First, we used the GPT-2 tokenizer provided by the [HuggingFace transformers library](https://huggingface.co/transformers/model_doc/gpt2.html#gpt2tokenizer) to tokenize the texts prior to training. We adapted the tokenizer to handle the answer markers as special tokens in the input texts so that they are not split into subtokens. To download and create the adapted tokenizer vocabulary, we ran:
 
-```python create_tokenizer_vocab.py --save_path qg_tokenizer_vocab/```
+``python create_tokenizer_vocab.py -save_path qg_tokenizer_vocab/``
 
 Alternatively instead of running this command, you can just download the customized vocabulary via ``bash download_models.sh`` as instructed in the top level of the repo.
 
-Then, to apply the tokenizer to the data in one of the partitions of sample_data/ (for example, train/), run:
+Then, to apply the tokenizer to a data folder that contains input_texts.txt and questions.txt, designate a folder to save the tokenized data and run it on the folder containing the untokenized files. For example, for the files in sample_data/untokenized/train/):
 
-```python tokenize_data.py --in_data_dir sample_data/train -out_data_dir tok_sample_data/train```
+``python tokenize_data.py -tokenizer_path qg_tokenizer_vocab/ -in_data_dir sample_data/untokenized/train/ -out_data_dir sample_data/tokenized/train``
 
-The -out_data_dir is a new directory that will be created containing the tokenized questions.txt and answer_sents.txt. Once you've done this for all training/validation data you want to use for the model, you're ready to train the model. 
-
-
-## Training the model
-
-The QG models are transformer sequence-to-sequence models implemented with [OpenNMT-py](https://github.com/OpenNMT/OpenNMT-py), version 1.2.0. We use their standard scripts for data preprocessing and training. Below are the commands that were used, applied to the tok_sample_data/ we produced above as an example (these scripts are executed inside the OpenNMT-py repo where the scripts are located):
-
-``python preprocess.py -train_src ~/masked_dataset/train/answer_sents.txt -train_tgt ~/masked_dataset/train/sent_questions.txt -valid_src ~/masked_dataset/valid/answer_sents.txt -valid_tgt ~/masked_dataset/valid/sent_questions.txt -save_data ~/masked_dataset/processed_sentence -src_seq_length 100 -dynamic_dict -share_vocab``
-
-``python train.py -data ~/masked_dataset/processed_paragraph -save_model ~/qg_models/paragraph_copy_model_suggested_params -layers 4 -rnn_size 512 -word_vec_size 512 -transformer_ff 2048 -heads 8 -max_grad_norm 0 -optim adam -encoder_type transformer -decoder_type transformer -position_encoding -dropout 0.1 -param_init 0 -warmup_steps 8000 -decay_method noam -valid_steps 500 -world_size 1 -gpu_ranks 0 -batch_size 4096 -keep_checkpoint 2 -copy_attn -reuse_copy_attn -max_generator_batches 2 -normalization tokens -batch_type tokens -adam_beta2 0.998 -learning_rate 2 -param_init_glorot -label_smoothing 0.1 -accum_count 4 -save_checkpoint 500 -early_stopping 1``
-
-When applied to the full dataset of SQuAD/NewsQA pairs processed in the format shown by sample_data/, this command yielded the model we refer to as ``Standard`` in the paper. For training the other model variations discussed in the paper, see below. 
+The -out_data_dir is a new directory that will be created containing the tokenized questions.txt and input_texts.txt. Of course, repeat this command for any additional validation/test data folders. Once the tokenized data is created, you're ready to train the model.
 
 
-## Model Variations
+## 2. Training the model
 
-### RuleMimic
+The QG models are transformer sequence-to-sequence models implemented with [OpenNMT-py](https://github.com/OpenNMT/OpenNMT-py), version 1.2.0. Note that version 1.2.0 is important as this code is not compatible with newer versions of OpenNMT-py. We use their standard commands in this version for data preprocessing and training. Below are the commands that were used, applied to the sample_data/tokenized/ we produced above as an example:
+
+``onmt_preprocess -train_src sample_data/tokenized/train/input_texts.txt -train_tgt sample_data/tokenized/train/questions.txt -valid_src sample_data/tokenized/valid/input_texts.txt -valid_tgt sample_data/tokenized/valid/questions.txt -save_data sample_data/onmt_processed_data -dynamic_dict -share_vocab -src_seq_length 200``
+
+This creates data files prefixed by the -save_data path. Then, to train on this processed data:
+
+``onmt_train -data sample_data/onmt_processed_data -save_model sample_model -layers 4 -rnn_size 512 -word_vec_size 512 -transformer_ff 2048 -heads 8 -max_grad_norm 0 -optim adam -encoder_type transformer -decoder_type transformer -position_encoding -dropout 0.1 -param_init 0 -warmup_steps 8000 -decay_method noam -valid_steps 200 -world_size 1 -gpu_ranks 0 -batch_size 4096 -keep_checkpoint 2 -copy_attn -reuse_copy_attn -max_generator_batches 2 -normalization tokens -batch_type tokens -adam_beta2 0.998 -learning_rate 2 -param_init_glorot -label_smoothing 0.1 -accum_count 4 -save_checkpoint 200 -early_stopping 1``
+
+(Note: set -gpu_ranks based on your own GPU configuration or omit it to run on CPU). 
+
+See the OpenNMT-py documentation for the explanation of all of these parameter settings. Some of these values were selected based on the recommendations [here](https://opennmt.net/OpenNMT-py/FAQ.html#how-do-i-use-the-transformer-model).
+
+Once the model is trained you can use the onmt-translate command to generate questions for any given tokenized texts, e.g.:
+
+``onmt_translate -model sample_model_step_[X].pt -src sample_data/tokenized/valid/input_texts.txt -gpu 0 -verbose -output sample_pred_questions.txt``
+
+You'll need to additionally detokenize this output using the above tokenizer, e.g.
+
+```from transformers import GPT2Tokenizer
+from answerquest.utils import detokenize_fn
+tokenizer = GPT2Tokenizer.from_pretrained('qg_tokenizer_vocab')
+with open('sample_pred_questions.txt') as f:
+    detok_questions = [detokenize_fn(tokenizer, question.strip().split(" ")) for question in f]
+```
+
+When applied to the full dataset of SQuAD/NewsQA pairs processed via these steps, this yielded the model we refer to as "Standard" in the paper. For training the other model variations discussed in the paper, see below. 
+
+
+## 3. Model Variations
+
+### RuleMimic Model
 
 As explained in the paper, the RuleMimic model has the same architecture as the model trained above, but it is trained specifically on a dataset of Q&A pairs generated from a rule-based system. 
 
-The system is that of [Hielman & Smith](http://www.cs.cmu.edu/~ark/mheilman/questions/). This sytem applied rule-based transformations to syntactic parse trees to derive questions from sentences, where each question has an answer contained in the transformed sentence. Additionally, the approach scores the generated questions based on a statistical model of quality. 
+The system is that of [Hielman & Smith](http://www.cs.cmu.edu/~ark/mheilman/questions/). This system applied rule-based transformations to syntactic parse trees to derive questions from sentences, where each question has an answer contained in the transformed sentence. Additionally, the approach scores the generated questions based on a statistical model of quality. 
 
-The result of the code here is a dataset with input sentence and question pairs (answers highlighted in the input sentence) along with their scores.The script rule_based_question_generation.py execute , 
+The script rule_based_question_generation.py takes any texts as input and produces a dataset with input sentence and question pairs in the same format as the sample data used above. Below are the steps needed to run this script.
 
-You will first need to download the jar from the above site. The rule_based_question_generation.py script launches the jar as a subprocess. Before running the script, you should start the supersense tagging and parsing servers using the README instructions provided with the jar download.
+First, download the code directory from the above site, which includes a jar file.  
 
-To run the parsing server:
-`java -Xmx1200m -cp question-generation.jar edu.cmu.ark.StanfordParserServer --grammar config/englishFactored.ser.gz --port 5556 --maxLength 40`
+rule_based_question_generation.py script launches the jar as a subprocess. Before running the script, you should separately start the supersense tagging and parsing servers using the README instructions provided with the downloaded code.
+
+To run the parsing server, while inside the directory containing the jar, we did:
+``java -Xmx1200m -cp question-generation.jar edu.cmu.ark.StanfordParserServer --grammar config/englishFactored.ser.gz --port 5556 --maxLength 40``
 
 To run the supersense tagging server:
-`java -Xmx500m -cp lib/supersense-tagger.jar edu.cmu.ark.SuperSenseTaggerServer  --port 5557 --model config/superSenseModelAllSemcor.ser.gz --properties config/QuestionTransducer.properties.1`
+``java -Xmx500m -cp lib/supersense-tagger.jar edu.cmu.ark.SuperSenseTaggerServer  --port 5557 --model config/superSenseModelAllSemcor.ser.gz --properties config/QuestionTransducer.properties``
 
-Start multiple servers by varying the port number. These port numbers need to be consistent with the ones specified in config/QuestionTransducer.properties.{X}. There is a properties file for each unique pair of supersenseServerPort and parserServerPort specifications.
+rule_based_question_generation.py executes the jar and saves its output with the same format and labels as the files in sample_data/. The system outputs questions aligned to single sentences, but because the program does its own sentence-segmentation, we provided full paragraphs as input, e.g. sample_data/raw_text/paragraphs.txt (Note that in contrast to the sample input_texts.txt which already contains answer annotations derived from a Q&A dataset, the text provided to the rule-based system naturally does not already have answer annotations - you can use any raw text).
 
-Each properties file can be provided as input (via the -config_file parameter) to a different run of rule_based_question_generation.py so that each run will use the corresponding sense and parsing servers in that config. The script takes a file (-input_file) of newline-separated texts as inputs from which questions will be generated. Specify which chunk of texts each run should process using the start_idx and end_idx parameters, which correspond to line indices in the input file. The script will process texts will these indices specifically and then write the questions generated from these texts to a file {save_prefix}_{start_idx}_{end_idx}.csv. Here is an example:
+You'll need to specify the path to the directory containing the jar as well as the config file it loads. The config we used is already contained in QuestionGeneration/config/QuestionTransducer.properties. Make sure the ports specified for the parsing and supersense tagging servers match where you are running them (i.e. what you specified in the above commands).
 
-`python rule_based_question_generation.py -input_file  ~/question_generation/newsqa_untok_data/train/unique_paragraphs.txt -config_file ~/question_generation/HS-QuestionGeneration/config/QuestionTransducer.properties.1 -start_idx 0 -end_idx 10 -save_prefix ~/question_generation/squad_data/hs_output_sample`
+``python rule_based_question_generation.py -input_file sample_data/raw/paragraphs.txt -jar_dir QuestionGeneration/ -config_file QuestionGeneration/config/QuestionTransducer.properties -output_dir sample_data/rule_gen_output``
 
+This will save the files input_texts.txt and questions.txt to sample_data/rule_gen_output. You can see that input_texts.txt has the same answer-annotation format as in sample_data/untokenized.
 
+From there, you can process this data and train a model on it using the exact same steps outlined in Section 1 and 2. 
 
-As described in the paper, we trained three models: one simply trained on the SQuAD/NewsQA Q&A pairs (the "Standard" model), one trained on the Q&A pairs derived from the rule-based method above ("RuleMimic"), and one initialized from the RuleMimic model and fine-tuned on the SQUaD/News QA pairs ("Augmented"). For training the Standard and RuleMimic models, we ran:
+### Augmented Model
 
+As detailed in the paper, our best-performing model (referred to as "Augmented") came from first training the RuleMimic model described above, then fine-tuning this model on the full SQuAD/NewsQA dataset. The idea behind this is that model first learns to mimic formal grammatical rules for deriving questions, then additionally simulates more informal, abstractive features of human-authored questions in these Q&A datasets.
 
-Training the Augmented model was exactly the same with just an additional parameter supplied to train.py specifying the location of the trained RuleMimic model:
+We did this simply by fine-tuning the above RuleMimic model on the same SQuAD/NewsQA data described in Section 1. In OpenNMT-py, the -train_from parameter will initialize a new model with the weights of the existing model provided as this parameter. We used the exact same command from Section 2. For example, if you've already trained the model sample_rulemimic_model on the rule-generated data:
 
-``python train.py -data ~/fine_tuned_rule_based_squad/processed_data/processed -save_model ~/fine_tuned_rule_based_squad/trained_models/copy_model_suggested_params -layers 4 -rnn_size 512 -word_vec_size 512 -transformer_ff 2048 -heads 8 -max_grad_norm 0 -optim adam -encoder_type transformer -decoder_type transformer -position_encoding -dropout 0.1 -param_init 0 -warmup_steps 8000 -decay_method noam -valid_steps 500 -world_size 1 -gpu_ranks 0 -batch_size 4096 -keep_checkpoint 2 -copy_attn -reuse_copy_attn -max_generator_batches 2 -normalization tokens -batch_type tokens -adam_beta2 0.998 -learning_rate 2 -param_init_glorot -label_smoothing 0.1 -accum_count 4 -save_checkpoint 500 -early_stopping 1 -train_from ~/rule_based_entity_tagged_squad/trained_models/copy_model_suggested_params_step_3500.pt``
-
-You can use OpenNMT-py's "translate.py" script to generate questions for any tokenized texts:
-
-``python translate.py -model ~/qg_models/paragraph_copy_model_step_100000.pt -src ~/masked_dataset/valid/paragraphs.txt -verbose -gpu 0 -output ~/qg_outputs/paragraph_copy_model_outputs.txt``
-
-Note that the output of this script will need to be detokenized, e.g. ``answerquest.utils.detokenize_fn(TOKENIZER_PATH, question)``.
+``onmt_train -data sample_data/onmt_processed_data -save_model sample_augmented_model -layers 4 -rnn_size 512 -word_vec_size 512 -transformer_ff 2048 -heads 8 -max_grad_norm 0 -optim adam -encoder_type transformer -decoder_type transformer -position_encoding -dropout 0.1 -param_init 0 -warmup_steps 8000 -decay_method noam -valid_steps 500 -world_size 1 -gpu_ranks 0 -batch_size 4096 -keep_checkpoint 2 -copy_attn -reuse_copy_attn -max_generator_batches 2 -normalization tokens -batch_type tokens -adam_beta2 0.998 -learning_rate 2 -param_init_glorot -label_smoothing 0.1 -accum_count 4 -save_checkpoint 500 -early_stopping 1 -train_from sample_rulemimic_model``
 

@@ -122,3 +122,11 @@ For example:
 In [1]: requests.post('http://0.0.0.0:8080/documentsqa', json={'paragraph': "He ate the pie. The pie was served with ice cream.", "question": "What was the pie served with?"}).text
 Out[2]: 'ice cream.'
 ```
+
+## Training your own models
+
+The QG and QA models are trained separately.
+
+The [scripts/question_generation folder](scripts/question_generation) contains the files and instructions for training a QG model.  
+
+The [scripts/question_answering folder](scripts/question_answering) contains the files for training a QA model (additional documentation still needed here).
