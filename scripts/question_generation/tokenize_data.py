@@ -3,6 +3,7 @@ sys.path.append("../../")
 
 import os
 import argparse
+from transformers import GPT2Tokenizer
 from answerquest.utils import tokenize_fn
 
 
@@ -27,7 +28,7 @@ if __name__ == "__main__":
                         help="Path of directory containing adapted HuggingFace tokenizer vocabulary.",
                         type=str, required=True)
     parser.add_argument("--in_data_dir", "-in_data_dir",
-                        help="Directory path of data to be tokenized (folder must include questions.txt and answer_sents.txt)",
+                        help="Directory path of data to be tokenized (folder must include questions.txt and input_texts.txt)",
                         type=str, required=True)
     parser.add_argument("--out_data_dir", "-out_data_dir",
                         help="Directory path where tokenized data will be saved.",
@@ -36,10 +37,11 @@ if __name__ == "__main__":
 
     tokenizer = GPT2Tokenizer.from_pretrained(args.tokenizer_path)
 
-    input_texts = [text.strip() for text in open(os.path.join(args.in_data_dir,
-                                                              "answer_sents.txt"))],
-    questions = [question.strip() for question in open(os.path.join(args.in_data_dir,
-                                                                    "questions.txt"))]
+    with open(os.path.join(args.in_data_dir, "input_texts.txt")) as f:
+        input_texts = [text.strip() for text in f]
+
+    with open(os.path.join(args.in_data_dir, "questions.txt")) as f:
+        questions = [question.strip() for question in f]
 
     tok_input_texts, tok_questions = tokenize_data(input_texts, questions,
                                                    tokenizer, tokenize_fn=tokenize_fn)
@@ -47,8 +49,12 @@ if __name__ == "__main__":
     if not os.path.isdir(args.out_data_dir):
         os.mkdir(args.out_data_dir)
 
-    with open(os.path.join(args.out_data_dir, 'answer_sents.txt'), 'w') as f:
-        f.write("\n".join(input_texts))
+    with open(os.path.join(args.out_data_dir, 'input_texts.txt'), 'w') as f:
+        f.write("\n".join(tok_input_texts))
+        print("Saved tokenized input texts to", os.path.join(
+            args.out_data_dir, 'input_texts.txt'))
 
     with open(os.path.join(args.out_data_dir, 'questions.txt'), 'w') as f:
-        f.write("\n".join(questions))
+        f.write("\n".join(tok_questions))
+        print("Saved tokenized questions to", os.path.join(
+            args.out_data_dir, 'questions.txt'))

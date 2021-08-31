@@ -4,13 +4,23 @@ import json
 import subprocess
 
 
-def get_answer_annotated_data(data):
+def get_answer_annotated_data(questions, answer_sents, answers, scores,
+                              min_score=0.0):
     '''Annotate answers in input texts'''
+    # import pdb
+    # pdb.set_trace()
     filtered_questions = []
     filtered_answer_sents = []
-    filtered_answers = []
 
-    for idx, (question, answer_sent, answer) in enumerate(data[['question', 'answer_sent', 'answer']].values):
+    for idx, (question,
+              answer_sent,
+              answer,
+              score) in enumerate(zip(questions,
+                                      answer_sents,
+                                      answers,
+                                      scores)):
+        if score < min_score:
+            continue
         answer_start_char = None
         while answer_start_char == None:
             try:
@@ -30,10 +40,8 @@ def get_answer_annotated_data(data):
                            answer_sent[answer_end_char + len(" <ANSWER>"):])
             filtered_answer_sents.append(answer_sent)
             filtered_questions.append(question)
-            filtered_answers.append(answer)
     return {'answer_sent': filtered_answer_sents,
-            'question': filtered_questions,
-            'answer': filtered_answers}
+            'question': filtered_questions}
 
 
 def run_proc(jar_dir, input_texts):
@@ -46,8 +54,10 @@ def run_proc(jar_dir, input_texts):
     ports for these servers. Code below will continuously cycle through each config so that it can distribute 
     the analyses across different ports, in order to speed things up.'''
 
-    qg_output = {'text_id': [], 'question': [],
-                 'answer_sent': [], 'answer': [], 'score': []}
+    qg_output = {'question': [],
+                 'answer_sent': [],
+                 'answer': [],
+                 'score': []}
     # n_parallel_procs = 50
     # input_chunks = [input_texts[idx:idx + n_parallel_procs]
     #                 for idx in range(0, len(input_texts), n_parallel_procs)]
@@ -93,47 +103,67 @@ def run_proc(jar_dir, input_texts):
         # pdb.set_trace()
         try:
             for question, answer_sent, answer, score in proc_outputs:
-                qg_output['text_id'].append(args.start_idx + text_idx)
+                #qg_output['text_id'].append(args.start_idx + text_idx)
                 qg_output['question'].append(question)
                 qg_output['answer_sent'].append(answer_sent)
                 qg_output['answer'].append(answer)
                 qg_output['score'].append(float(score))
         except:  # Possibly no questions were returned (e.g. error in parsing)
             continue
-        print("PROCESSED TEXTS UP TO INDEX", args.start_idx + text_idx, "\n\n")
+        print("PROCESSED TEXTS UP TO INDEX", text_idx, "\n\n")
+
+    return (qg_output['question'],
+            qg_output['answer_sent'],
+            qg_output['answer'],
+            qg_output['score'])
 
 
 if __name__ == '__main__':
 
     parser = argparse.ArgumentParser()
     parser.add_argument("--input_file", "-input_file",
-                        help="Path to input texts (one text per line).", type=str)
-    parser.add_argument("--jar_dir", "-jar_dir", type="str",
-                        help="Directory containing downloaded java program.")
+                        help="Path to input texts (one text per line).",
+                        type=str, required=True)
+    parser.add_argument("--jar_dir", "-jar_dir",
+                        help="Directory containing downloaded java program.",
+                        type=str, required=True)
     # parser.add_argument("--start_idx", "-start_idx", type=int)
     # parser.add_argument("--end_idx", "-end_idx", type=int)
     parser.add_argument("--config_file", "-config_file",
-                        help="Config file for java program", type=str)
+                        help="Config file for java program",
+                        type=str, required=True)
     parser.add_argument("--output_dir", "-output_dir",
-                        help="Directory path of where to save Q&A output", type=str)
+                        help="Directory path of where to save Q&A output",
+                        type=str, required=True)
+    parser.add_argument("--min_score", "-min_score",
+                        help="Filter questions below this quality score.\
+                        By default, all generated questions will be saved.",
+                        type=float, default=0.0)
     args = parser.parse_args()
 
     with open(args.input_file) as f:
         # [args.start_idx:args.end_idx]
         input_texts = [text.strip() for text in f]
 
-    qg_data = run_proc(jar_dir, input_texts)
+    orig_dir = os.path.dirname(os.path.abspath(__file__))
 
-    annotated_qg_data = get_answer_annotated_data(qg_data)
+    questions, answer_sents, answers, scores = run_proc(args.jar_dir,
+                                                        input_texts)
+
+    os.chdir(orig_dir)
+
+    annotated_qg_data = get_answer_annotated_data(questions, answer_sents, answers, scores,
+                                                  min_score=args.min_score)
 
     if not os.path.isdir(args.output_dir):
         os.mkdir(args.output_dir)
 
-    with open(os.path.join(args.output_dir, 'answer_sents.txt'), 'w') as f:
+    with open(os.path.join(args.output_dir, 'input_texts.txt'), 'w') as f:
         f.write("\n".join(annotated_qg_data['answer_sent']))
+        print("Saved answer-annotated sentences to",
+              os.path.join(args.output_dir, 'input_texts.txt'))
 
     with open(os.path.join(args.output_dir, 'questions.txt'), 'w') as f:
         f.write("\n".join(annotated_qg_data['question']))
-
-    with open(os.path.join(args.output_dir, 'answers_only.txt'), 'w') as f:
-        f.write("\n".join(annotated_qg_data['answer']))
+        print("Saved questions to",
+              os.path.join(args.output_dir, 'questions.txt'))
