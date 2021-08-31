@@ -57,7 +57,7 @@ When applied to the full dataset of SQuAD/NewsQA pairs processed via these steps
 
 As explained in the paper, the RuleMimic model has the same architecture as the model trained above, but it is trained specifically on a dataset of Q&A pairs generated from a rule-based system. 
 
-The system is that of [Hielman & Smith](http://www.cs.cmu.edu/~ark/mheilman/questions/). This system applied rule-based transformations to syntactic parse trees to derive questions from sentences, where each question has an answer contained in the transformed sentence. Additionally, the approach scores the generated questions based on a statistical model of quality. 
+The system is that of [Heilman & Smith](http://www.cs.cmu.edu/~ark/mheilman/questions/). This system applied rule-based transformations to syntactic parse trees to derive questions from sentences, where each question has an answer contained in the transformed sentence. Additionally, the approach scores the generated questions based on a statistical model of quality. 
 
 The script rule_based_question_generation.py takes any texts as input and produces a dataset with input sentence and question pairs in the same format as the sample data used above. Below are the steps needed to run this script.
 
