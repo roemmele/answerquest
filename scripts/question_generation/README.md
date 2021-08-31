@@ -61,9 +61,9 @@ The system is that of [Hielman & Smith](http://www.cs.cmu.edu/~ark/mheilman/ques
 
 The script rule_based_question_generation.py takes any texts as input and produces a dataset with input sentence and question pairs in the same format as the sample data used above. Below are the steps needed to run this script.
 
-First, download the code directory from the above site, which includes a jar file.  
+First, download the full code directory from the above site (QuestionGeneration-10-01-12.tar.gz)  
 
-rule_based_question_generation.py script launches the jar as a subprocess. Before running the script, you should separately start the supersense tagging and parsing servers using the README instructions provided with the downloaded code.
+This code includes a jar file, and rule_based_question_generation.py script launches the jar as a subprocess. Before running the script, you should separately start the supersense tagging and parsing servers using the README instructions provided with the downloaded code.
 
 To run the parsing server, while inside the directory containing the jar, we did:
 ``java -Xmx1200m -cp question-generation.jar edu.cmu.ark.StanfordParserServer --grammar config/englishFactored.ser.gz --port 5556 --maxLength 40``
