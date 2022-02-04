@@ -1,6 +1,6 @@
 # answerquest
 
-This repo contains the code for the answerquest library, which performs question generation and question answering from provided texts. In particular, it can be used to generate a list of Q&A pairs pertaining to the text, and also predict answers to given questions about the text. You can view the web demo for this project at [qna.languageweaver.com](https://qna.languageweaver.com).
+This repo contains the code for the answerquest library, which performs question generation and question answering from provided texts. In particular, it can be used to generate a list of Q&A pairs pertaining to the text, and also predict answers to given questions about the text.
 
 ## Installation
 
