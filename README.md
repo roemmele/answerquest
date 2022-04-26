@@ -99,7 +99,7 @@ For example:
 
 By default the service will run on port 8082. It should automatically detect whether there is a GPU device to run on.
 
-You can then make a POST question to the service to obtain question-answer pairs from a given input text. Here's an example of making this request in Python:
+You can then make a POST request to the service to obtain question-answer pairs from a given input text. Here's an example of making this request in Python:
 ```
 In [1]: import requests
 
