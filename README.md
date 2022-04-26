@@ -4,6 +4,8 @@ This repo contains the code for the answerquest library, which performs question
 
 ## Installation
 
+Note: Some people have reported problems with installation in Python versions > 3.6, so I recommend using an environment with Python = 3.6. 
+
 You can install the answerquest library directly from this repo using pip:
 
 `pip install git+https://github.com/roemmele/answerquest.git`
